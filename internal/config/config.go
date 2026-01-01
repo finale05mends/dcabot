@@ -1,42 +1,41 @@
 package config
 
 import (
+	"fmt"
 	"os"
-	"regexp"
-	"strings"
 
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Exchange ExchangeConfig
-	Bot      BotConfig
-	Runtime  RuntimeConfig
+	Exchange ExchangeConfig `mapstructure:"exchange"`
+	Bot      BotConfig      `mapstructure:"bot"`
+	Runtime  RuntimeConfig  `mapstructure:"runtime"`
 }
 
 type ExchangeConfig struct {
-	BaseUrl string
-	WSUrl   string
-	ApiKey  string
-	Secret  string
+	BaseUrl string `mapstructure:"base_url"`
+	WSUrl   string `mapstructure:"ws_url"`
+	ApiKey  string `mapstructure:"api_key"`
+	Secret  string `mapstructure:"secret"`
 }
 
 type BotConfig struct {
-	Symbol           string
-	Side             string
-	BaseOrderQty     float64
-	TPPercent        float64
-	SOCount          int
-	SOStepPercent    float64
-	SOStepMultiplier float64
-	SOBaseQty        float64
-	SOQtyMultiplier  float64
+	Symbol           string  `mapstructure:"symbol"`
+	Side             string  `mapstructure:"side"`
+	BaseOrderQty     float64 `mapstructure:"base_order_qty"`
+	TPPercent        float64 `mapstructure:"tp_percent"`
+	SOCount          int     `mapstructure:"so_count"`
+	SOStepPercent    float64 `mapstructure:"so_step_percent"`
+	SOStepMultiplier float64 `mapstructure:"so_step_multiplier"`
+	SOBaseQty        float64 `mapstructure:"so_base_qty"`
+	SOQtyMultiplier  float64 `mapstructure:"so_qty_multiplier"`
 }
 
 type RuntimeConfig struct {
-	DryRun              bool
-	RestoreStateOnStart bool
-	LogLevel            string
+	DryRun              bool   `mapstructure:"dry_run"`
+	RestoreStateOnStart bool   `mapstructure:"restore_state_on_start"`
+	LogLevel            string `mapstructure:"log_level"`
 }
 
 func Load() (*Config, error) {
@@ -44,45 +43,16 @@ func Load() (*Config, error) {
 	cfg := &Config{}
 	viper.AddConfigPath("configs")
 	viper.SetConfigName("config")
-	viper.ReadInConfig()
-
-	cfg.Exchange = ExchangeConfig{
-		BaseUrl: viper.GetString("exchange.base_url"),
-		WSUrl:   viper.GetString("exchange.ws_url"),
-		ApiKey:  envSub("exchange.api_key"),
-		Secret:  envSub("exchange.secret"),
+	viper.AutomaticEnv()
+	if err := viper.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("Не удалось прочитать конфиг: %w", err)
+	}
+	if err := viper.Unmarshal(cfg); err != nil {
+		return nil, fmt.Errorf("Не удалось разобрать конфиг: %w", err)
 	}
 
-	cfg.Bot = BotConfig{
-		Symbol:           viper.GetString("bot.symbol"),
-		Side:             viper.GetString("bot.side"),
-		BaseOrderQty:     viper.GetFloat64("bot.base_order_qty"),
-		TPPercent:        viper.GetFloat64("bot.tp_percent"),
-		SOCount:          viper.GetInt("bot.so_count"),
-		SOStepPercent:    viper.GetFloat64("bot.so_step_percent"),
-		SOStepMultiplier: viper.GetFloat64("bot.so_step_multiplier"),
-		SOBaseQty:        viper.GetFloat64("bot.so_base_qty"),
-		SOQtyMultiplier:  viper.GetFloat64("bot.so_qty_multiplier"),
-	}
-
-	cfg.Runtime = RuntimeConfig{
-		DryRun:              viper.GetBool("runtime.dry_run"),
-		RestoreStateOnStart: viper.GetBool("runtime.restore_state_on_start"),
-		LogLevel:            viper.GetString("runtime.log_level"),
-	}
+	cfg.Exchange.ApiKey = os.ExpandEnv(cfg.Exchange.ApiKey)
+	cfg.Exchange.Secret = os.ExpandEnv(cfg.Exchange.Secret)
 
 	return cfg, nil
-}
-
-func envSub(key string) string {
-	val := viper.GetString(key)
-	if val == "" {
-		return ""
-	}
-
-	re := regexp.MustCompile(`\$\{(\w+)\}`)
-	return re.ReplaceAllStringFunc(val, func(match string) string {
-		envKey := strings.TrimSuffix(strings.TrimPrefix(match, "${"), "}")
-		return os.Getenv(envKey)
-	})
 }

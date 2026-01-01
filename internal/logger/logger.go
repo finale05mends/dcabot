@@ -33,3 +33,11 @@ func New(level string) *Logger {
 func (l *Logger) Info(msg string) {
 	l.log.Info(msg)
 }
+
+func (l *Logger) WithFields(fields logrus.Fields) *logrus.Entry {
+	return l.log.WithFields(fields)
+}
+
+func (l *Logger) WithError(err error) *logrus.Entry {
+	return l.log.WithError(err)
+}
