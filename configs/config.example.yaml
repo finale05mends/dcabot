@@ -1,0 +1,21 @@
+exchange:
+  base_url: "https://api.bybit.com"
+  ws_url: "wss://stream.bybit.com/spot"
+  api_key: "${BYBIT_API_KEY}"
+  secret: "${BYBIT_API_SECRET}"
+
+bot:
+  symbol: "XRPUSDT"
+  side: "BUY"
+  base_order_qty: 50          # в quote (USDT) или базовой - на ваше усмотрение, но консистентно
+  tp_percent: 0.5             # 0.5%
+  so_count: 5
+  so_step_percent: 1.0        # 1.0% первый шаг от цены первичного ордера
+  so_step_multiplier: 1.2     # 1.0..2.0
+  so_base_qty: 50
+  so_qty_multiplier: 1.1      # 1.0..2.0
+
+runtime:
+  dry_run: false              # режим без реальных заявок
+  restore_state_on_start: true
+  log_level: "info"
