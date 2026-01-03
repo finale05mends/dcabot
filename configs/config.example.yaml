@@ -1,6 +1,8 @@
 exchange:
   base_url: "https://api.bybit.com"
-  ws_url: "wss://stream.bybit.com/spot"
+  ws_public_url: "wss://stream.bybit.com/v5/public/spot"
+  ws_private_url: "wss://stream.bybit.com/v5/private"
+  account_type: "UNIFIED"
   api_key: "${BYBIT_API_KEY}"
   secret: "${BYBIT_API_SECRET}"
 
@@ -8,6 +10,7 @@ bot:
   symbol: "XRPUSDT"
   side: "BUY"
   base_order_qty: 50          # в quote (USDT) или базовой - на ваше усмотрение, но консистентно
+  qty_unit: "baseCoin"        # baseCoin / quoteCoin
   tp_percent: 0.5             # 0.5%
   so_count: 5
   so_step_percent: 1.0        # 1.0% первый шаг от цены первичного ордера
@@ -18,4 +21,11 @@ bot:
 runtime:
   dry_run: false              # режим без реальных заявок
   restore_state_on_start: true
-  log_level: "info"
+  log:
+    level: "info" 
+    format: "text"
+    file: "" 
+    max_size: 500
+    max_backups: 0
+    max_age: 0
+    compress: false

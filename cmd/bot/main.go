@@ -21,13 +21,20 @@ func main() {
 		panic(err)
 	}
 
-	logger := logger.New(cfg.Runtime.LogLevel)
+	logger := logger.New(logger.Config{
+		Level:      cfg.Runtime.Log.Level,
+		Format:     cfg.Runtime.Log.Format,
+		Output:     cfg.Runtime.Log.File,
+		MaxSize:    cfg.Runtime.Log.MaxSize,
+		MaxBackups: cfg.Runtime.Log.MaxBackups,
+		MaxAge:     cfg.Runtime.Log.MaxAge,
+		Compress:   cfg.Runtime.Log.Compress,
+	})
 
 	logger.Info("Бот запущен.")
 
-	client := bybit.New(cfg.Exchange.BaseUrl, cfg.Exchange.WSUrl, cfg.Exchange.ApiKey, cfg.Exchange.Secret, logger)
+	client := bybit.New(cfg.Exchange.BaseUrl, cfg.Exchange.WSPublicURL, cfg.Exchange.WSPrivateURL, cfg.Exchange.AccountType, cfg.Exchange.ApiKey, cfg.Exchange.Secret, logger)
 	eng := engine.New(cfg, client, logger)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -37,6 +44,8 @@ func main() {
 		}
 	}()
 	<-sigCh
+
 	cancel()
-	logger.Info("Остановка...")
+
+	logger.Info("Бот остановлен.")
 }

@@ -5,18 +5,22 @@ import (
 	"dcabot/internal/config"
 	"dcabot/internal/exchange"
 	"dcabot/internal/logger"
-	"fmt"
 	"math"
-	"strings"
+	"sync"
 	"time"
 )
 
 type Engine struct {
-	cfg    *config.Config
-	client exchange.Client
-	log    *logger.Logger
-
-	rules exchange.InstrumentRules
+	cfg                *config.Config
+	client             exchange.Client
+	log                *logger.Logger
+	rules              exchange.InstrumentRules
+	tpSeq              int64
+	mu                 sync.Mutex
+	state              DealState
+	lastTickerLog      time.Time
+	tpRebuildScheduled bool
+	tpRebuildAt        time.Time
 }
 
 func New(cfg *config.Config, client exchange.Client, log *logger.Logger) *Engine {
@@ -24,19 +28,47 @@ func New(cfg *config.Config, client exchange.Client, log *logger.Logger) *Engine
 		cfg:    cfg,
 		client: client,
 		log:    log,
+		state:  DealState{},
 	}
 }
 
 func (e *Engine) Start(ctx context.Context) error {
-	fmt.Println("Start запущен")
+	e.logEntry().Debug("Start запущен.")
+
 	rules, err := e.withRetryRules(ctx, e.cfg.Bot.Symbol)
 	if err != nil {
 		return err
 	}
 	e.rules = rules
-	e.log.Info(fmt.Sprintf("Получены ограничения торговой пары: %+v", e.rules))
+	e.logEntry().WithFields(map[string]interface{}{
+		"rules_tick_size":    formatFloatPlain(e.rules.TickSize),
+		"rules_lot_size":     formatFloatPlain(e.rules.LotSize),
+		"rules_min_qty":      formatFloatPlain(e.rules.MinQty),
+		"rules_min_notional": formatFloatPlain(e.rules.MinNotional),
+		"rules_base":         e.rules.BaseCoin,
+		"rules_quote":        e.rules.QuoteCoin,
+	}).Info("Получены ограничения торговой пары.")
 
-	//TODO: добавить логику бота
+	events, err := e.client.Subscribe(ctx, e.cfg.Bot.Symbol)
+	if err != nil {
+		return err
+	}
+
+	go e.handleEvents(ctx, events)
+
+	restored, err := e.restoreActiveOrders(ctx)
+	if err != nil {
+		return err
+	}
+	if restored {
+		e.logEntry().Info("Восстановлены активные ордера после рестарта, новый вход не нужен.")
+	}
+
+	if !restored && !e.state.Active {
+		if err := e.openDeal(ctx); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -54,7 +86,7 @@ func (e *Engine) withRetryRules(ctx context.Context, symbol string) (exchange.In
 		if isRateLimitError(err) {
 			wait = time.Duration(math.Min(float64(reconnect*4), float64(reconnect*30)))
 		}
-		e.log.Info("Ошибка. Повторяем запрос")
+		e.logEntry().WithError(lastErr).Warn("Ошибка. Повторяем запрос.")
 		select {
 		case <-ctx.Done():
 			return exchange.InstrumentRules{}, ctx.Err()
@@ -63,12 +95,4 @@ func (e *Engine) withRetryRules(ctx context.Context, symbol string) (exchange.In
 		reconnect *= 2
 	}
 	return exchange.InstrumentRules{}, lastErr
-}
-
-func isRateLimitError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "Превышен лимит запросов.") || strings.Contains(msg, "429") || strings.Contains(msg, "10006")
 }

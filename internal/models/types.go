@@ -3,25 +3,34 @@ package models
 import "time"
 
 type OrderSide string
+
 type OrderType string
+
 type OrderStatus string
+
 type OrderKind string
 
 const (
-	OrderSideBuy  OrderSide = "BUY"
-	OrderSideSell OrderSide = "SELL"
+	OrderSideBuy  OrderSide = "Buy"
+	OrderSideSell OrderSide = "Sell"
+)
 
-	OrderTypeMarket OrderType = "MARKET"
-	OrderTypeLimit  OrderType = "LIMIT"
+const (
+	OrderTypeMarket OrderType = "Market"
+	OrderTypeLimit  OrderType = "Limit"
+)
 
-	OrderStatusNew             OrderStatus = "NEW"
-	OrderStatusPartiallyFilled OrderStatus = "PARTIALLY_FILLED"
-	OrderStatusFilled          OrderStatus = "FILLED"
-	OrderStatusCanceled        OrderStatus = "CANCELED"
+const (
+	OrderStatusNew             OrderStatus = "New"
+	OrderStatusPartiallyFilled OrderStatus = "PartiallyFilled"
+	OrderStatusFilled          OrderStatus = "Filled"
+	OrderStatusCanceled        OrderStatus = "Canceled"
+)
 
-	OrderKindEntry  OrderKind = "ENTRY"
-	OrderKindTP     OrderKind = "TAKE_PROFIT"
-	OrderKindSafety OrderKind = "SAFETY"
+const (
+	OrderKindEntry  OrderKind = "Entry"
+	OrderKindTP     OrderKind = "TakeProfit"
+	OrderKindSafety OrderKind = "Safety"
 )
 
 type Order struct {
@@ -40,6 +49,9 @@ type Order struct {
 	UpdateTime  time.Time   `json:"update_time"`
 	IsReduce    bool        `json:"is_reduce"`
 	TimeInForce string      `json:"time_in_force"`
+	MarketUnit  string      `json:"market_unit"`
+	PriceStep   float64     `json:"price_step"`
+	QtyStep     float64     `json:"qty_step"`
 }
 
 type Fill struct {
