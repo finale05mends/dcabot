@@ -99,7 +99,7 @@ WARN[2026-01-03T20:44:23+07:00] Страховочный ордер пропущ
 WARN[2026-01-03T20:44:23+07:00] Страховочный ордер пропущен, нет цены для пересчёта объёма.  component=engine entry_price=2.169559 index=10 price=-20.025029999999997 so_count=10 symbol=XRPUSDT total_percent=1023
 ```
 
-### runtime.log.format="text"
+### runtime.log.format="json"
 
 ```json
 {"level":"info","msg":"Бот запущен.","time":"2026-01-03T20:48:05+03:00"}
