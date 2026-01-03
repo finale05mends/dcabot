@@ -26,13 +26,14 @@ go run ./cmd/bot/main.go
 ## Кофигурация
 
 Пример находится в configs/config.example.yaml
+exchange:
+exchange.base_url - bybit api url.
+exchange.ws_public_url - публичный ws (Тикеры).
+exchange.ws_private_url - приватный ws (Ордера и исполнения).
+exchange.account_type - Тип аккаунта UNIFIED/CLASSIC. На Classic аккаунте не тестировалось.
+exchange.api_key, excahnge.secret - ключи. Указывается переменная окружения, откуда подтягивать данные.
 
-excahnge.base_url - bybit api url.
-excahnge.ws_public_url - публичный ws (Тикеры).
-excahnge.ws_private_url - приватный ws (Ордера и исполнения).
-excahnge.account_type - Тип аккаунта UNIFIED/CLASSIC. На Classic аккаунте не тестировалось.
-excahnge.api_key, excahnge.secret - ключи. Указывается переменная окружения, откуда подтягивать данные.
- 
+bot:
 bot.symbol - указание торговой пары.
 bot.side - направление торгов. Buy/sell.
 bot.base_order_qty - Объём входного маркет ордера.
@@ -44,6 +45,7 @@ bot.so_step_multiplier - множитель шага для постановки
 bot.so_base_qty - объём первого страховочного ордера.
 bot.so_qty_multiplier - множитель объйма страховочных ордеров. >=1, <=2.
 
+runtime
 runtime.dry_run - Режим без постановки реальных заявок. true/false //В процессе.
 runtime.restore_state_on_start - восстанавливать состояние после рестарта. true/false.
 runtime.log.level - уровень логирования. debug/info/warn/error/fatal/panic. По умолчанию "info".
