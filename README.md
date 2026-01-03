@@ -27,34 +27,40 @@ go run ./cmd/bot/main.go
 
 Пример находится в configs/config.example.yaml
 exchange:
-exchange.base_url - bybit api url.
-exchange.ws_public_url - публичный ws (Тикеры).
-exchange.ws_private_url - приватный ws (Ордера и исполнения).
-exchange.account_type - Тип аккаунта UNIFIED/CLASSIC. На Classic аккаунте не тестировалось.
-exchange.api_key, excahnge.secret - ключи. Указывается переменная окружения, откуда подтягивать данные.
+```sh
+exchange.base_url #bybit api url.
+exchange.ws_public_url #Публичный ws (Тикеры).
+exchange.ws_private_url #Приватный ws (Ордера и исполнения).
+exchange.account_type #Тип аккаунта UNIFIED/CLASSIC. На Classic аккаунте не тестировалось.
+exchange.api_key, excahnge.secret #Ключи. Указывается переменная окружения, откуда подтягивать данные.
+```
 
 bot:
-bot.symbol - указание торговой пары.
-bot.side - направление торгов. Buy/sell.
-bot.base_order_qty - Объём входного маркет ордера.
-bot.qty_unit - baseCoin/quoteCoint единица измерения ордеров. (И маркет и страховочных).
-bot.tp_percent - процент тейк-профита.
-bot.so_count - количество страховочных ордеров.
-bot.so_step_percent - первый шаг в сетке страховочных ордеров, от цены входного ордера.
-bot.so_step_multiplier - множитель шага для постановки последующих страховочных ордеров. >=1, <=2
-bot.so_base_qty - объём первого страховочного ордера.
-bot.so_qty_multiplier - множитель объйма страховочных ордеров. >=1, <=2.
+```sh
+bot.symbol #Указание торговой пары.
+bot.side #Направление торгов. Buy/sell.
+bot.base_order_qty #Объём входного маркет ордера.
+bot.qty_unit #baseCoin/quoteCoint единица измерения ордеров. (И маркет и страховочных).
+bot.tp_percent #Процент тейк-профита.
+bot.so_count #Количество страховочных ордеров.
+bot.so_step_percent #Первый шаг в сетке страховочных ордеров, от цены входного ордера.
+bot.so_step_multiplier #Множитель шага для постановки последующих страховочных ордеров. >=1, <=2
+bot.so_base_qty #Объём первого страховочного ордера.
+bot.so_qty_multiplier #Множитель объйма страховочных ордеров. >=1, <=2.
+```
 
 runtime
-runtime.dry_run - Режим без постановки реальных заявок. true/false //В процессе.
-runtime.restore_state_on_start - восстанавливать состояние после рестарта. true/false.
-runtime.log.level - уровень логирования. debug/info/warn/error/fatal/panic. По умолчанию "info".
-runtime.log.format - формат вывода логов. text/json.
-runtime.log.file - путь к файлу логов. Без указания выводи в stdout.
-runtime.log.max_size - максимальный размер файла логов в МБ.
-runtime.log.max_backups - максимальное количество архивных файлов логов.
-runtime.log.max_age - Максимальный возраст логов в днях.
-runtime.log.compress - требуется ли сжимать старые логи. true/false.
+```sh
+runtime.dry_run #Режим без постановки реальных заявок. true/false //В процессе.
+runtime.restore_state_on_start #Восстанавливать состояние после рестарта. true/false.
+runtime.log.level #Уровень логирования. debug/info/warn/error/fatal/panic. По умолчанию "info".
+runtime.log.format #Формат вывода логов. text/json.
+runtime.log.file #Путь к файлу логов. Без указания выводи в stdout.
+runtime.log.max_size #Максимальный размер файла логов в МБ.
+runtime.log.max_backups #Максимальное количество архивных файлов логов.
+runtime.log.max_age #Максимальный возраст логов в днях.
+runtime.log.compress #Требуется ли сжимать старые логи. true/false.
+```
 
 ## Примеры логов
 
