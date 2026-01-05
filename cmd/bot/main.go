@@ -33,7 +33,7 @@ func main() {
 
 	logger.Info("Бот запущен.")
 
-	client := bybit.New(cfg.Exchange.BaseUrl, cfg.Exchange.WSPublicURL, cfg.Exchange.WSPrivateURL, cfg.Exchange.AccountType, cfg.Exchange.ApiKey, cfg.Exchange.Secret, logger)
+	client := bybit.New(cfg, logger)
 	eng := engine.New(cfg, client, logger)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

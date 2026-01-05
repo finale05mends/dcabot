@@ -2,6 +2,7 @@ package bybit
 
 import (
 	"context"
+	"dcabot/internal/config"
 	"dcabot/internal/exchange"
 	"dcabot/internal/exchange/bybit/rest"
 	"dcabot/internal/exchange/bybit/ws"
@@ -11,6 +12,7 @@ import (
 )
 
 type Client struct {
+	cfg         *config.Config
 	rest        *rest.Client
 	wsPublic    *ws.Client
 	wsPrivate   *ws.Client
@@ -18,11 +20,12 @@ type Client struct {
 	log         *logger.Logger
 }
 
-func New(baseURL, wsPublicURL, wsPrivateURL, accountType, apiKey, secret string, log *logger.Logger) *Client {
+func New(cfg *config.Config, log *logger.Logger) *Client {
 	return &Client{
-		rest:      rest.New(baseURL, apiKey, secret, accountType, log),
-		wsPublic:  newWSClient(wsPublicURL, "", "", log),
-		wsPrivate: newWSClient(wsPrivateURL, apiKey, secret, log),
+
+		rest:      rest.New(cfg.Exchange.BaseUrl, cfg.Exchange.ApiKey, cfg.Exchange.Secret, cfg.Exchange.AccountType, log),
+		wsPublic:  newWSClient(cfg.Exchange.WSPublicURL, "", "", log),
+		wsPrivate: newWSClient(cfg.Exchange.WSPrivateURL, cfg.Exchange.ApiKey, cfg.Exchange.Secret, log),
 		log:       log,
 	}
 }

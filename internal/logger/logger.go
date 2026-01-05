@@ -3,6 +3,7 @@ package logger
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -54,13 +55,19 @@ func New(cfg Config) *Logger {
 
 	var writer io.Writer
 	if cfg.Output != "" && cfg.Output != "stdout" {
-		writer = &lumberjack.Logger{
-			Filename:   cfg.Output,
-			MaxSize:    cfg.MaxSize,
-			MaxBackups: cfg.MaxBackups,
-			MaxAge:     cfg.MaxAge,
-			Compress:   cfg.Compress,
-			LocalTime:  true,
+		dir := filepath.Dir(cfg.Output)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			log.WithError(err).Warnf("не удалось создать директорию для логов: %s", dir)
+			writer = os.Stdout
+		} else {
+			writer = &lumberjack.Logger{
+				Filename:   cfg.Output,
+				MaxSize:    cfg.MaxSize,
+				MaxBackups: cfg.MaxBackups,
+				MaxAge:     cfg.MaxAge,
+				Compress:   cfg.Compress,
+				LocalTime:  true,
+			}
 		}
 	} else {
 		writer = os.Stdout

@@ -5,7 +5,6 @@ import (
 	"dcabot/internal/config"
 	"dcabot/internal/exchange"
 	"dcabot/internal/logger"
-	"math"
 	"sync"
 	"time"
 )
@@ -49,6 +48,10 @@ func (e *Engine) Start(ctx context.Context) error {
 		"rules_quote":        e.rules.QuoteCoin,
 	}).Info("Получены ограничения торговой пары.")
 
+	if e.cfg.Runtime.DryRun {
+		return e.runDry(ctx)
+	}
+
 	events, err := e.client.Subscribe(ctx, e.cfg.Bot.Symbol)
 	if err != nil {
 		return err
@@ -71,28 +74,4 @@ func (e *Engine) Start(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (e *Engine) withRetryRules(ctx context.Context, symbol string) (exchange.InstrumentRules, error) {
-	var lastErr error
-	var reconnect time.Duration = 1 * time.Second
-	for i := 0; i < 5; i++ {
-		rules, err := e.client.GetInstrumentRules(ctx, symbol)
-		if err == nil {
-			return rules, nil
-		}
-		lastErr = err
-		wait := time.Duration(math.Min(float64(reconnect), float64(reconnect*30)))
-		if isRateLimitError(err) {
-			wait = time.Duration(math.Min(float64(reconnect*4), float64(reconnect*30)))
-		}
-		e.logEntry().WithError(lastErr).Warn("Ошибка. Повторяем запрос.")
-		select {
-		case <-ctx.Done():
-			return exchange.InstrumentRules{}, ctx.Err()
-		case <-time.After(wait):
-		}
-		reconnect *= 2
-	}
-	return exchange.InstrumentRules{}, lastErr
 }

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"dcabot/internal/exchange"
 	"dcabot/internal/models"
 	"fmt"
 	"math"
@@ -33,6 +34,30 @@ func (e *Engine) withRetry(ctx context.Context, fn func() (models.Order, error))
 		backoff *= 2
 	}
 	return models.Order{}, lastErr
+}
+
+func (e *Engine) withRetryRules(ctx context.Context, symbol string) (exchange.InstrumentRules, error) {
+	var lastErr error
+	var reconnect time.Duration = 1 * time.Second
+	for i := 0; i < 5; i++ {
+		rules, err := e.client.GetInstrumentRules(ctx, symbol)
+		if err == nil {
+			return rules, nil
+		}
+		lastErr = err
+		wait := time.Duration(math.Min(float64(reconnect), float64(reconnect*30)))
+		if isRateLimitError(err) {
+			wait = time.Duration(math.Min(float64(reconnect*4), float64(reconnect*30)))
+		}
+		e.logEntry().WithError(lastErr).Warn("Ошибка. Повторяем запрос.")
+		select {
+		case <-ctx.Done():
+			return exchange.InstrumentRules{}, ctx.Err()
+		case <-time.After(wait):
+		}
+		reconnect *= 2
+	}
+	return exchange.InstrumentRules{}, lastErr
 }
 
 func (e *Engine) withRetryVoid(ctx context.Context, fn func() error) error {

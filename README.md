@@ -21,7 +21,21 @@ go run ./cmd/bot/main.go
 
 Логи пишутся либо в stdout, либо в файл, если он указан в runtime.log.file
 
-##Docker TODO
+## Docker
+
+Сборка образа:
+
+```sh
+make docker-build
+```
+
+Запуск контейнера с монтированием логов:
+
+```sh
+export BYBIT_API_KEY=""
+export BYBIT_API_SECRET=""
+make docker-run
+```
 
 ## Кофигурация
 
@@ -51,7 +65,7 @@ bot.so_qty_multiplier #Множитель объйма страховочных 
 
 runtime
 ```sh
-runtime.dry_run #Режим без постановки реальных заявок. true/false //В процессе.
+runtime.dry_run #Режим без постановки реальных заявок. true/false
 runtime.restore_state_on_start #Восстанавливать состояние после рестарта. true/false.
 runtime.log.level #Уровень логирования. debug/info/warn/error/fatal/panic. По умолчанию "info".
 runtime.log.format #Формат вывода логов. text/json.
