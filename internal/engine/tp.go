@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"dcabot/internal/metrics"
 	"dcabot/internal/models"
 	"fmt"
 	"time"
@@ -89,6 +90,7 @@ func (e *Engine) rebuildTP(ctx context.Context) error {
 			return e.client.CancelOrder(ctx, e.cfg.Bot.Symbol, oldOrderID)
 		}); err != nil {
 			if !isOrderNotExistError(err) {
+				metrics.M.OrdersFailed.WithLabelValues(e.cfg.Bot.Symbol, string(oppositeSide(e.state.Side)), string(models.OrderKindTP), string(models.OrderTypeLimit)).Inc()
 				return err
 			}
 			e.mu.Lock()

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"dcabot/internal/metrics"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -13,10 +14,14 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 )
 
 func (c *Client) doRequest(ctx context.Context, method, path string, params url.Values, body any, auth bool, out any) error {
+	start := time.Now()
+	metrics.M.APIRequests.WithLabelValues(path, method).Inc()
+
 	var bodyReader io.Reader
 	var bodyStr string
 	if body != nil {
@@ -35,6 +40,8 @@ func (c *Client) doRequest(ctx context.Context, method, path string, params url.
 
 	req, err := http.NewRequestWithContext(ctx, method, urlStr, bodyReader)
 	if err != nil {
+		metrics.M.APIErrors.WithLabelValues(path, method).Inc()
+		metrics.M.APILatency.WithLabelValues(path, method).Observe(time.Since(start).Seconds())
 		return fmt.Errorf("Не удалось создать запрос: %w", err)
 	}
 
@@ -59,6 +66,12 @@ func (c *Client) doRequest(ctx context.Context, method, path string, params url.
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		metrics.M.APIErrors.WithLabelValues(path, method).Inc()
+		if strings.Contains(err.Error(), "Too many visits!") || strings.Contains(err.Error(), "429") || strings.Contains(err.Error(), "10006") {
+			metrics.M.APIRateLimitHits.WithLabelValues(path, method).Inc()
+		}
+		metrics.M.APILatency.WithLabelValues(path, method).Observe(time.Since(start).Seconds())
+
 		return fmt.Errorf("Ошибка запроса: %w", err)
 	}
 
@@ -66,21 +79,36 @@ func (c *Client) doRequest(ctx context.Context, method, path string, params url.
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
+		metrics.M.APIErrors.WithLabelValues(path, method).Inc()
+		metrics.M.APILatency.WithLabelValues(path, method).Observe(time.Since(start).Seconds())
 		return fmt.Errorf("Не удалось прочитать ответ: %w", err)
 	}
 
 	if err := json.Unmarshal(data, out); err != nil {
+		metrics.M.APIErrors.WithLabelValues(path, method).Inc()
+		metrics.M.APILatency.WithLabelValues(path, method).Observe(time.Since(start).Seconds())
 		return fmt.Errorf("Не удалось разобрать ответ: %w", err)
 	}
 
 	if retCode, retMsg, ok := extractRetCode(out); ok && retCode != 0 {
+		metrics.M.APIErrors.WithLabelValues(path, method).Inc()
+		if retCode == 10006 {
+			metrics.M.APIRateLimitHits.WithLabelValues(path, method).Inc()
+		}
+		metrics.M.APILatency.WithLabelValues(path, method).Observe(time.Since(start).Seconds())
 		return fmt.Errorf("Ошибка bybit: %s (code=%d)", retMsg, retCode)
 	}
 
 	if resp.StatusCode >= 400 {
+		metrics.M.APIErrors.WithLabelValues(path, method).Inc()
+		if resp.StatusCode == http.StatusTooManyRequests {
+			metrics.M.APIRateLimitHits.WithLabelValues(path, method).Inc()
+		}
+		metrics.M.APILatency.WithLabelValues(path, method).Observe(time.Since(start).Seconds())
 		return fmt.Errorf("Неуспешный статус: %s", resp.Status)
 	}
 
+	metrics.M.APILatency.WithLabelValues(path, method).Observe(time.Since(start).Seconds())
 	return nil
 }
 
@@ -90,7 +118,6 @@ func sign(secret, payload string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// TODO
 func extractRetCode(v any) (int, string, bool) {
 	rv := reflect.ValueOf(v)
 	if rv.Kind() == reflect.Pointer {

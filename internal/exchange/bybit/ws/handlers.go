@@ -2,6 +2,7 @@ package ws
 
 import (
 	"dcabot/internal/exchange"
+	"dcabot/internal/metrics"
 	"dcabot/internal/models"
 	"encoding/json"
 	"strconv"
@@ -23,6 +24,7 @@ func (w *Client) handleExecution(msg Message) {
 
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
 		w.logEntry().WithError(err).Warn("Не удалось разобрать execution.")
+		metrics.M.WSParseErrors.Inc()
 		return
 	}
 
@@ -78,6 +80,7 @@ func (w *Client) handleOrder(msg Message) {
 
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
 		w.logEntry().WithError(err).Warn("Не удалось разобрать order.")
+		metrics.M.WSParseErrors.Inc()
 		return
 	}
 
@@ -136,6 +139,7 @@ func (w *Client) handleTicker(msg Message) {
 		}
 		if err := json.Unmarshal(msg.Data, &single); err != nil {
 			w.logEntry().WithError(err).Warn("Не удалось разобрать ticker.")
+			metrics.M.WSParseErrors.Inc()
 			return
 		}
 		data = append(data, single)

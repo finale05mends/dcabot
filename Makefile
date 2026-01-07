@@ -25,15 +25,18 @@ docker-build:
 docker-run:
 	mkdir -p $(DATA_DIR)
 	docker run -d \
+		-p 2112:2112 \
 		-v $(DATA_DIR):/app/data \
 		-v $(CURDIR)/configs:/app/configs \
 		-e BYBIT_API_KEY \
 		-e BYBIT_API_SECRET \
+		--name $(APP_NAME) \
 		$(APP_NAME):latest 
 
 docker-run-once:
 	mkdir -p $(DATA_DIR)
 	docker run --rm \
+		-p 2112:2112 \
 		-v $(DATA_DIR):/app/data \
 		-v $(CURDIR)/configs:/app/configs \
 		-e BYBIT_API_KEY \

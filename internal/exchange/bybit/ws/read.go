@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"dcabot/internal/exchange"
+	"dcabot/internal/metrics"
 	"encoding/json"
 	"strings"
 	"time"
@@ -32,15 +33,28 @@ func (w *Client) readLoop() {
 		var msg Message
 		if err := json.Unmarshal(data, &msg); err != nil {
 			w.logEntry().WithError(err).Warn("Не удалось разобрать WS сообщение.")
+			metrics.M.WSParseErrors.Inc()
 			continue
 		}
 
 		switch {
 		case msg.Topic == "execution" || strings.HasPrefix(msg.Topic, "execution"):
+			metrics.M.WSMessagesReceived.WithLabelValues("execution").Inc()
+			if !w.connectedAt.IsZero() {
+				metrics.M.WSConnectionAge.Set(time.Since(w.connectedAt).Seconds())
+			}
 			w.handleExecution(msg)
 		case msg.Topic == "order" || strings.HasPrefix(msg.Topic, "order"):
+			metrics.M.WSMessagesReceived.WithLabelValues("order").Inc()
+			if !w.connectedAt.IsZero() {
+				metrics.M.WSConnectionAge.Set(time.Since(w.connectedAt).Seconds())
+			}
 			w.handleOrder(msg)
 		case strings.HasPrefix(msg.Topic, "tickers"):
+			metrics.M.WSMessagesReceived.WithLabelValues("ticker").Inc()
+			if !w.connectedAt.IsZero() {
+				metrics.M.WSConnectionAge.Set(time.Since(w.connectedAt).Seconds())
+			}
 			w.handleTicker(msg)
 		default:
 			continue
@@ -75,6 +89,8 @@ func (w *Client) reconnect() bool {
 
 		w.conn = conn
 		w.conn.SetReadLimit(2 << 20)
+		w.connectedAt = time.Now()
+		metrics.M.WSConnectionAge.Set(0)
 
 		if w.apiKey != "" && w.secret != "" {
 			if err := w.authenticate(); err != nil {

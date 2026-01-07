@@ -73,6 +73,7 @@ func (e *Engine) Start(ctx context.Context) error {
 	}
 
 	go e.handleEvents(ctx, events)
+	e.startMetricsUpdater(ctx)
 
 	restored := false
 	if restoredFromStore {

@@ -7,9 +7,12 @@ import (
 	"dcabot/internal/exchange/bybit"
 	"dcabot/internal/logger"
 	"dcabot/internal/store"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -33,6 +36,15 @@ func main() {
 	})
 
 	logger.Info("Бот запущен.")
+
+	go func() {
+		addr := ":2112"
+		http.Handle("/metrics", promhttp.Handler())
+		logger.Info("endpoint метрик запущен.")
+		if err := http.ListenAndServe(addr, nil); err != nil {
+			logger.WithError(err).Error("Ошибка сервера метрик.")
+		}
+	}()
 
 	var st store.Store
 	if cfg.Runtime.Store.Path != "" {

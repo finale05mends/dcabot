@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"dcabot/internal/metrics"
 	"dcabot/internal/models"
 	"fmt"
 	"strings"
@@ -177,6 +178,7 @@ func (e *Engine) cancelSafetyOrders(ctx context.Context) error {
 		}
 		orderIDs = append(orderIDs, orderID)
 	}
+	sideLabel := string(e.state.Side)
 	e.mu.Unlock()
 
 	if len(orderIDs) == 0 {
@@ -198,6 +200,7 @@ func (e *Engine) cancelSafetyOrders(ctx context.Context) error {
 				return e.client.CancelOrder(ctx, e.cfg.Bot.Symbol, orderID)
 			}); err != nil {
 				if !isOrderNotExistError(err) {
+					metrics.M.OrdersFailed.WithLabelValues(e.cfg.Bot.Symbol, sideLabel, string(models.OrderKindSafety), string(models.OrderTypeLimit)).Inc()
 					errCh <- err
 				}
 			}
@@ -233,7 +236,13 @@ func (e *Engine) cancelOpenBotOrders(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	orderIDs := make([]string, 0, len(openOrders))
+	type orderRef struct {
+		id   string
+		kind models.OrderKind
+		typ  models.OrderType
+		side models.OrderSide
+	}
+	orderRefs := make([]orderRef, 0, len(openOrders))
 	for _, ord := range openOrders {
 		if _, ok := dealIDFromLinkID(ord.LinkID); !ok {
 			continue
@@ -241,27 +250,30 @@ func (e *Engine) cancelOpenBotOrders(ctx context.Context) (int, error) {
 		if ord.ID == "" {
 			continue
 		}
-		orderIDs = append(orderIDs, ord.ID)
+		orderRefs = append(orderRefs, orderRef{id: ord.ID, kind: ord.Kind, typ: ord.Type, side: ord.Side})
 	}
-	if len(orderIDs) == 0 {
+	if len(orderRefs) == 0 {
 		return 0, nil
 	}
 
 	const workers = 3
-	jobs := make(chan string, len(orderIDs))
-	errCh := make(chan error, len(orderIDs))
+	jobs := make(chan orderRef, len(orderRefs))
+	errCh := make(chan error, len(orderRefs))
 	var wg sync.WaitGroup
 
 	worker := func() {
 		defer wg.Done()
-		for orderID := range jobs {
+		for ref := range jobs {
 			if ctx.Err() != nil {
 				return
 			}
 			if err := e.withRetryVoid(ctx, func() error {
-				return e.client.CancelOrder(ctx, e.cfg.Bot.Symbol, orderID)
+				return e.client.CancelOrder(ctx, e.cfg.Bot.Symbol, ref.id)
 			}); err != nil {
 				if !isOrderNotExistError(err) {
+					if ref.kind != "" && ref.typ != "" {
+						metrics.M.OrdersFailed.WithLabelValues(e.cfg.Bot.Symbol, string(ref.side), string(ref.kind), string(ref.typ)).Inc()
+					}
 					errCh <- err
 				}
 			}
@@ -272,8 +284,8 @@ func (e *Engine) cancelOpenBotOrders(ctx context.Context) (int, error) {
 		wg.Add(1)
 		go worker()
 	}
-	for _, orderID := range orderIDs {
-		jobs <- orderID
+	for _, ref := range orderRefs {
+		jobs <- ref
 	}
 	close(jobs)
 	wg.Wait()
@@ -281,8 +293,8 @@ func (e *Engine) cancelOpenBotOrders(ctx context.Context) (int, error) {
 
 	for err := range errCh {
 		if err != nil {
-			return len(orderIDs), err
+			return len(orderRefs), err
 		}
 	}
-	return len(orderIDs), nil
+	return len(orderRefs), nil
 }

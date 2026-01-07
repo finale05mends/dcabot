@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"dcabot/internal/exchange"
+	"dcabot/internal/metrics"
 	"dcabot/internal/models"
 	"fmt"
 	"math"
@@ -149,6 +150,7 @@ func (e *Engine) placeOrderIdempotent(ctx context.Context, order models.Order) (
 		return e.client.PlaceOrder(ctx, order)
 	})
 	if err == nil {
+		metrics.M.OrdersPlaced.WithLabelValues(order.Symbol, string(order.Side), string(order.Kind), string(order.Type)).Inc()
 		return placed, nil
 	}
 	if isDuplicateClientOrderID(err) {
@@ -169,6 +171,7 @@ func (e *Engine) placeOrderIdempotent(ctx context.Context, order models.Order) (
 		}
 	}
 
+	metrics.M.OrdersFailed.WithLabelValues(order.Symbol, string(order.Side), string(order.Kind), string(order.Type)).Inc()
 	return models.Order{}, err
 }
 

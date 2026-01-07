@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"dcabot/internal/metrics"
 	"dcabot/internal/models"
 	"fmt"
 	"strings"
@@ -180,6 +181,8 @@ func (e *Engine) requestClose(ctx context.Context, reason string) {
 	e.state.CloseReason = reason
 	e.mu.Unlock()
 	e.saveState(ctx)
+
+	metrics.M.EngineCloseRequest.WithLabelValues(e.cfg.Bot.Symbol, string(e.state.Side), reason).Inc()
 
 	e.logEntry().WithField("reason", reason).Info("Закрытие цикла сделки.")
 

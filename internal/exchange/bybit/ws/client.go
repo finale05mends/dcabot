@@ -4,6 +4,7 @@ import (
 	"context"
 	"dcabot/internal/exchange"
 	"dcabot/internal/logger"
+	"dcabot/internal/metrics"
 	"fmt"
 	"time"
 
@@ -34,6 +35,8 @@ func (w *Client) Connect(ctx context.Context) error {
 
 	w.conn = conn
 	w.conn.SetReadLimit(2 << 20)
+	w.connectedAt = time.Now()
+	metrics.M.WSConnectionAge.Set(0)
 
 	if w.apiKey != "" && w.secret != "" {
 		if err := w.authenticate(); err != nil {

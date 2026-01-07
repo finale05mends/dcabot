@@ -18,7 +18,8 @@ WORKDIR /app
 COPY --from=builder /out/bot /app/bot
 COPY configs /app/configs
 
-RUN mkdir -p /data
-VOLUME ["/data"]
+RUN mkdir -p /app/data
+VOLUME ["/app/data"]
+EXPOSE 2112
 
 ENTRYPOINT ["/app/bot"]

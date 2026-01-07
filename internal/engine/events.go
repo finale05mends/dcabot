@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"dcabot/internal/exchange"
+	"dcabot/internal/metrics"
 	"dcabot/internal/models"
 	"time"
 )
@@ -251,6 +252,17 @@ func (e *Engine) handleOrder(ctx context.Context, order models.Order) {
 		e.saveState(ctx)
 	}
 
+	if order.Status == models.OrderStatusFilled || order.Status == models.OrderStatusCanceled {
+		if order.Kind != "" && order.Type != "" {
+			if order.Status == models.OrderStatusFilled {
+				metrics.M.OrdersFilled.WithLabelValues(order.Symbol, string(order.Side), string(order.Kind), string(order.Type)).Inc()
+			}
+			if order.Status == models.OrderStatusCanceled {
+				metrics.M.OrdersCancelled.WithLabelValues(order.Symbol, string(order.Side), string(order.Kind), string(order.Type)).Inc()
+			}
+		}
+	}
+
 	if isTP && order.Status == models.OrderStatusFilled {
 		if e.isQtyZero(totalQty) {
 			e.logEntry().WithField("order_id", order.ID).Info("TP полностью исполнен по статусу ордера.")
@@ -290,6 +302,40 @@ func (e *Engine) handleTicker(ctx context.Context, ticker models.Ticker) {
 	e.lastTickerLog = now
 	e.mu.Unlock()
 
+	symbol := ticker.Symbol
+	if symbol == "" {
+		symbol = e.cfg.Bot.Symbol
+	}
+	metrics.M.CurrentPrice.WithLabelValues(symbol).Set(ticker.LastPrice)
+	dealActive := 0.0
+	if active {
+		dealActive = 1
+	}
+	metrics.M.DealActive.WithLabelValues(symbol, string(e.state.Side)).Set(dealActive)
+	if active {
+		metrics.M.EntryPrice.WithLabelValues(symbol, string(e.state.Side)).Set(e.state.EntryPrice)
+		metrics.M.AvgPrice.WithLabelValues(symbol, string(e.state.Side)).Set(avgPrice)
+		metrics.M.TotalQty.WithLabelValues(symbol, string(e.state.Side)).Set(totalQty)
+		metrics.M.TPPrice.WithLabelValues(symbol, string(e.state.Side)).Set(tpPrice)
+		metrics.M.TPQty.WithLabelValues(symbol, string(e.state.Side)).Set(tpQty)
+		if avgPrice > 0 && totalQty > 0 && ticker.LastPrice > 0 {
+			pnl := (ticker.LastPrice - avgPrice) * totalQty
+			if e.state.Side == models.OrderSideSell {
+				pnl = (avgPrice - ticker.LastPrice) * totalQty
+			}
+			metrics.M.UnrealizedPnL.WithLabelValues(symbol, string(e.state.Side)).Set(pnl)
+		} else {
+			metrics.M.UnrealizedPnL.WithLabelValues(symbol, string(e.state.Side)).Set(0)
+		}
+	} else {
+		metrics.M.EntryPrice.WithLabelValues(symbol, string(e.state.Side)).Set(0)
+		metrics.M.AvgPrice.WithLabelValues(symbol, string(e.state.Side)).Set(0)
+		metrics.M.TotalQty.WithLabelValues(symbol, string(e.state.Side)).Set(0)
+		metrics.M.TPPrice.WithLabelValues(symbol, string(e.state.Side)).Set(0)
+		metrics.M.TPQty.WithLabelValues(symbol, string(e.state.Side)).Set(0)
+		metrics.M.UnrealizedPnL.WithLabelValues(symbol, string(e.state.Side)).Set(0)
+	}
+
 	if !active || dealID == "" {
 		return
 	}
@@ -316,12 +362,16 @@ func (e *Engine) handleTicker(ctx context.Context, ticker models.Ticker) {
 				if baseBal == 0 {
 					baseBal = bal.Available
 				}
+				metrics.M.BalanceAvailable.WithLabelValues(base).Set(bal.Available)
+				metrics.M.BalanceWallet.WithLabelValues(base).Set(bal.Wallet)
 			}
 			if bal, ok := balances[quote]; ok {
 				quoteBal = bal.Wallet
 				if quoteBal == 0 {
 					quoteBal = bal.Available
 				}
+				metrics.M.BalanceAvailable.WithLabelValues(quote).Set(bal.Available)
+				metrics.M.BalanceWallet.WithLabelValues(quote).Set(bal.Wallet)
 			}
 		}
 	}

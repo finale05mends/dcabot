@@ -23,6 +23,7 @@ type Client struct {
 	topics       []string
 	reconnectMin time.Duration
 	reconnectMax time.Duration
+	connectedAt  time.Time
 }
 
 type Message struct {
