@@ -67,6 +67,7 @@ runtime
 ```sh
 runtime.dry_run #Режим без постановки реальных заявок. true/false
 runtime.restore_state_on_start #Восстанавливать состояние после рестарта. true/false.
+runtime.store.path #Путь к файлу boltdb. Если пусто - БД отключена.
 runtime.log.level #Уровень логирования. debug/info/warn/error/fatal/panic. По умолчанию "info".
 runtime.log.format #Формат вывода логов. text/json.
 runtime.log.file #Путь к файлу логов. Без указания выводи в stdout.

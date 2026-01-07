@@ -6,6 +6,7 @@ import (
 	"dcabot/internal/engine"
 	"dcabot/internal/exchange/bybit"
 	"dcabot/internal/logger"
+	"dcabot/internal/store"
 	"os"
 	"os/signal"
 	"syscall"
@@ -33,8 +34,26 @@ func main() {
 
 	logger.Info("Бот запущен.")
 
+	var st store.Store
+	if cfg.Runtime.Store.Path != "" {
+		opened, err := store.NewBoltStore(cfg.Runtime.Store.Path, cfg.Runtime.Store.Bucket)
+		if err != nil {
+			logger.WithError(err).Fatal("Не удалось открыть БД.")
+		}
+		st = opened
+		logger.WithFields(map[string]interface{}{
+			"path":   cfg.Runtime.Store.Path,
+			"bucket": cfg.Runtime.Store.Bucket,
+		}).Info("БД включена.")
+		defer func() {
+			if err := st.Close(); err != nil {
+				logger.WithError(err).Warn("Не удалось закрыть БД.")
+			}
+		}()
+	}
+
 	client := bybit.New(cfg, logger)
-	eng := engine.New(cfg, client, logger)
+	eng := engine.New(cfg, client, logger, st)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

@@ -5,6 +5,7 @@ import (
 	"dcabot/internal/config"
 	"dcabot/internal/exchange"
 	"dcabot/internal/logger"
+	"dcabot/internal/store"
 	"sync"
 	"time"
 )
@@ -20,14 +21,16 @@ type Engine struct {
 	lastTickerLog      time.Time
 	tpRebuildScheduled bool
 	tpRebuildAt        time.Time
+	store              store.Store
 }
 
-func New(cfg *config.Config, client exchange.Client, log *logger.Logger) *Engine {
+func New(cfg *config.Config, client exchange.Client, log *logger.Logger, store store.Store) *Engine {
 	return &Engine{
 		cfg:    cfg,
 		client: client,
 		log:    log,
 		state:  DealState{},
+		store:  store,
 	}
 }
 
@@ -52,6 +55,18 @@ func (e *Engine) Start(ctx context.Context) error {
 		return e.runDry(ctx)
 	}
 
+	restoredFromStore := false
+	if e.cfg.Runtime.RestoreStateOnStart {
+		loaded, err := e.loadState(ctx)
+		if err != nil {
+			return err
+		}
+		restoredFromStore = loaded
+		if restoredFromStore {
+			e.logEntry().Info("Состояние сделки восстановлено из БД.")
+		}
+	}
+
 	events, err := e.client.Subscribe(ctx, e.cfg.Bot.Symbol)
 	if err != nil {
 		return err
@@ -59,17 +74,29 @@ func (e *Engine) Start(ctx context.Context) error {
 
 	go e.handleEvents(ctx, events)
 
-	restored, err := e.restoreActiveOrders(ctx)
-	if err != nil {
-		return err
-	}
-	if restored {
-		e.logEntry().Info("Восстановлены активные ордера после рестарта, новый вход не нужен.")
-	}
-
-	if !restored && !e.state.Active {
-		if err := e.openDeal(ctx); err != nil {
+	restored := false
+	if restoredFromStore {
+		if err := e.syncOpenOrders(ctx); err != nil {
+			e.logEntry().WithError(err).Warn("Не удалось сверить ордера после восстановления из БД.")
+		}
+		if err := e.ensureTPMatchesAverage(ctx); err != nil {
 			return err
+		}
+		restored = true
+	} else {
+		var err error
+		restored, err = e.restoreActiveOrders(ctx)
+		if err != nil {
+			return err
+		}
+		if restored {
+			e.logEntry().Info("Восстановлены активные ордера после рестарта, новый вход не нужен.")
+		}
+
+		if !restored && !e.state.Active {
+			if err := e.openDeal(ctx); err != nil {
+				return err
+			}
 		}
 	}
 

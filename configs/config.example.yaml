@@ -21,6 +21,8 @@ bot:
 runtime:
   dry_run: false              # режим без реальных заявок
   restore_state_on_start: true
+  store:
+    path: "data/db/state.db"
   log:
     level: "info" 
     format: "text"

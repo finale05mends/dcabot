@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -37,9 +38,10 @@ type BotConfig struct {
 }
 
 type RuntimeConfig struct {
-	DryRun              bool   `mapstructure:"dry_run"`
-	RestoreStateOnStart bool   `mapstructure:"restore_state_on_start"`
-	Log                 LogCfg `mapstructure:"log"`
+	DryRun              bool     `mapstructure:"dry_run"`
+	RestoreStateOnStart bool     `mapstructure:"restore_state_on_start"`
+	Log                 LogCfg   `mapstructure:"log"`
+	Store               StoreCfg `mapstructure:"store"`
 }
 
 type LogCfg struct {
@@ -50,6 +52,11 @@ type LogCfg struct {
 	MaxBackups int    `mapstructure:"max_backups"`
 	MaxAge     int    `mapstructure:"max_age"`
 	Compress   bool   `mapstructure:"compress"`
+}
+
+type StoreCfg struct {
+	Path   string `mapstructure:"path"`
+	Bucket string `mapstructure:"bucket"`
 }
 
 func Load() (*Config, error) {
@@ -90,6 +97,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Runtime.Log.Format == "" {
 		c.Runtime.Log.Format = "text"
+	}
+	if c.Runtime.Store.Path != "" {
+		c.Runtime.Store.Bucket = strings.ToLower(c.Bot.Symbol) + "_" + strings.ToLower(c.Bot.Side)
 	}
 
 	if c.Exchange.BaseUrl == "" {
@@ -135,38 +145,6 @@ func (c *Config) Validate() error {
 	if c.Bot.SOQtyMultiplier < 1 || c.Bot.SOQtyMultiplier > 2 {
 		return errors.New("Множитель объёма должен быть в диапазоне 1.0-2.0 (bot.so_qty_multiplier).")
 	}
-
-	// 	exchange:
-	//   base_url: "https://api.bybit.com"
-	//   ws_public_url: "wss://stream.bybit.com/v5/public/spot"
-	//   ws_private_url: "wss://stream.bybit.com/v5/private"
-	//   account_type: "UNIFIED"
-	//   api_key: "${BYBIT_API_KEY}"
-	//   secret: "${BYBIT_API_SECRET}"
-
-	// bot:
-	//   symbol: "XRPUSDT"
-	//   side: "BUY"
-	//   base_order_qty: 50          # в quote (USDT) или базовой - на ваше усмотрение, но консистентно
-	//   qty_unit: "baseCoin"        # baseCoin / quoteCoin
-	//   tp_percent: 0.5             # 0.5%
-	//   so_count: 5
-	//   so_step_percent: 1.0        # 1.0% первый шаг от цены первичного ордера
-	//   so_step_multiplier: 1.2     # 1.0..2.0
-	//   so_base_qty: 50
-	//   so_qty_multiplier: 1.1      # 1.0..2.0
-
-	// runtime:
-	//   dry_run: false              # режим без реальных заявок
-	//   restore_state_on_start: true
-	//   log:
-	//     level: "info"
-	//     format: "text"
-	//     file: ""
-	//     max_size: 500
-	//     max_backups: 0
-	//     max_age: 0
-	//     compress: false
 
 	return nil
 }

@@ -191,6 +191,7 @@ func (e *Engine) restoreActiveOrders(ctx context.Context) (bool, error) {
 		UpdatedAt:        time.Now(),
 	}
 	e.mu.Unlock()
+	e.saveState(ctx)
 
 	e.logEntry().WithFields(map[string]interface{}{
 		"deal_id":     dealID,

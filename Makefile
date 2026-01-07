@@ -1,6 +1,5 @@
 APP_NAME := dcabot
 DATA_DIR := $(CURDIR)/data
-IMAGE ?= $(APP_NAME):latest
 
 build:
 	go build -o bin/bot ./cmd/bot
@@ -26,7 +25,7 @@ docker-build:
 docker-run:
 	mkdir -p $(DATA_DIR)
 	docker run -d \
-		-v $(DATA_DIR):/data \
+		-v $(DATA_DIR):/app/data \
 		-v $(CURDIR)/configs:/app/configs \
 		-e BYBIT_API_KEY \
 		-e BYBIT_API_SECRET \
@@ -35,7 +34,7 @@ docker-run:
 docker-run-once:
 	mkdir -p $(DATA_DIR)
 	docker run --rm \
-		-v $(DATA_DIR):/data \
+		-v $(DATA_DIR):/app/data \
 		-v $(CURDIR)/configs:/app/configs \
 		-e BYBIT_API_KEY \
 		-e BYBIT_API_SECRET \

@@ -7,6 +7,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.21.0
+	go.etcd.io/bbolt v1.4.3
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 

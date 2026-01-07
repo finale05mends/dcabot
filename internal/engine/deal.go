@@ -98,6 +98,7 @@ func (e *Engine) openDeal(ctx context.Context) error {
 		}
 	}
 	e.mu.Unlock()
+	e.saveState(ctx)
 
 	return e.placeTPAndSafety(ctx, fill.Price)
 }
@@ -178,6 +179,7 @@ func (e *Engine) requestClose(ctx context.Context, reason string) {
 	e.state.CloseRequested = true
 	e.state.CloseReason = reason
 	e.mu.Unlock()
+	e.saveState(ctx)
 
 	e.logEntry().WithField("reason", reason).Info("Закрытие цикла сделки.")
 
@@ -298,6 +300,7 @@ func (e *Engine) finalizeClose(ctx context.Context) {
 	e.state.ClosedAt = &now
 	e.state.UpdatedAt = now
 	e.mu.Unlock()
+	e.clearState(ctx)
 
 	go func() {
 		const restartDelay = 1 * time.Second
@@ -355,4 +358,37 @@ func (e *Engine) finalizeClose(ctx context.Context) {
 			e.logEntry().WithError(err).Error("Не удалось открыть новый цикл.")
 		}
 	}()
+}
+
+func (e *Engine) resetState(ctx context.Context, reason string) {
+	e.mu.Lock()
+	if !e.state.Active {
+		e.mu.Unlock()
+		return
+	}
+	now := time.Now()
+	e.state.Active = false
+	e.state.Closing = false
+	e.state.CloseRequested = false
+	e.state.CloseReason = reason
+	e.state.DealID = ""
+	e.state.Symbol = ""
+	e.state.Side = ""
+	e.state.EntryPrice = 0
+	e.state.EntryLinkID = ""
+	e.state.AvgPrice = 0
+	e.state.TotalQty = 0
+	e.state.FilledByLink = map[string]float64{}
+	e.state.ProcessedExecIDs = map[string]bool{}
+	e.state.TPFilledQty = 0
+	e.state.TPOrderID = ""
+	e.state.TPlinkID = ""
+	e.state.PlannedTPQty = 0
+	e.state.SafetyOrders = map[string]string{}
+	e.state.PlannedTPPrice = 0
+	e.state.ClosedAt = &now
+	e.state.UpdatedAt = now
+	e.mu.Unlock()
+	e.clearState(ctx)
+	e.logEntry().WithField("reason", reason).Warn("Состояние сделки сброшено.")
 }

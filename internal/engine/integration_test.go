@@ -142,10 +142,10 @@ func TestIntegrationHappyPathServer(t *testing.T) {
 
 	log := logger.New(logger.Config{Level: "error", Format: "text", Output: "stdout"})
 	client := bybit.New(cfg, log)
-	eng := New(cfg, client, log)
+	eng := New(cfg, client, log, nil)
 
 	if err := eng.Start(ctx); err != nil {
-		t.Fatalf("Не удалось запустить \"engine\": %v", err)
+		t.Fatalf("Не удалось запустить \"Двигатель\": %v", err)
 	}
 
 	waitForIntegration(t, 8*time.Second, func() bool {

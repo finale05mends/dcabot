@@ -464,3 +464,13 @@ func (e *Engine) findOrderAfterDuplicate(ctx context.Context, symbol, linkID str
 	}
 	return models.Order{}, false
 }
+
+func isQtyClose(a, b, tolerance float64) bool {
+	if tolerance <= 0 {
+		tolerance = 1e-9
+	}
+	if a > b {
+		return (a - b) <= tolerance
+	}
+	return (b - a) <= tolerance
+}

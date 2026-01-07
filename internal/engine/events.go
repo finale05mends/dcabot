@@ -51,6 +51,12 @@ func (e *Engine) syncOpenOrders(ctx context.Context) error {
 		return err
 	}
 
+	dealID := e.state.DealID
+	dealOpen := 0
+	tpOpen := 0
+	safetyOpen := 0
+	entryOpen := 0
+
 	tpFound := false
 	safetyFound := make(map[string]bool)
 	for linkID := range e.state.SafetyOrders {
@@ -58,6 +64,17 @@ func (e *Engine) syncOpenOrders(ctx context.Context) error {
 	}
 
 	for _, order := range openOrders {
+		if ordDealID, ok := dealIDFromLinkID(order.LinkID); ok && ordDealID == dealID {
+			dealOpen++
+			switch {
+			case isTPLinkID(order.LinkID):
+				tpOpen++
+			case isSafetyLinkID(order.LinkID):
+				safetyOpen++
+			case isEntryLinkID(order.LinkID):
+				entryOpen++
+			}
+		}
 		if order.LinkID == e.state.TPlinkID {
 			e.state.TPOrderID = order.ID
 			tpFound = true
@@ -65,6 +82,77 @@ func (e *Engine) syncOpenOrders(ctx context.Context) error {
 		if _, ok := safetyFound[order.LinkID]; ok {
 			e.state.SafetyOrders[order.LinkID] = order.ID
 			safetyFound[order.LinkID] = true
+		}
+	}
+
+	anySafetyFound := false
+	for _, found := range safetyFound {
+		if found {
+			anySafetyFound = true
+			break
+		}
+	}
+
+	if !tpFound && !anySafetyFound {
+		if baseQty, err := e.baseAvailable(ctx); err == nil {
+			rounded := e.roundQty(baseQty)
+			if e.isQtyZero(rounded) && dealOpen == 0 {
+				e.logEntry().WithFields(map[string]interface{}{
+					"open_orders":     len(openOrders),
+					"deal_open":       dealOpen,
+					"tp_open":         tpOpen,
+					"safety_open":     safetyOpen,
+					"entry_open":      entryOpen,
+					"balance_qty":     rounded,
+					"tp_link_id":      e.state.TPlinkID,
+					"safety_expected": len(e.state.SafetyOrders),
+					"deal_id":         dealID,
+				}).Warn("Нет TP/СО и позиции, сброс состояния.")
+				e.resetState(ctx, "Нет TP/СО и позиция по балансу отсутствует.")
+				return nil
+			}
+		}
+	}
+
+	if baseQty, err := e.baseAvailable(ctx); err == nil {
+		rounded := e.roundQty(baseQty)
+		e.mu.Lock()
+		currentQty := e.roundQty(e.state.TotalQty)
+		e.mu.Unlock()
+		if !e.isQtyZero(rounded) || !e.isQtyZero(currentQty) {
+			if !isQtyClose(rounded, currentQty, e.rules.LotSize/2) {
+				e.logEntry().WithFields(map[string]interface{}{
+					"balance_qty": rounded,
+					"state_qty":   currentQty,
+					"open_orders": len(openOrders),
+					"deal_open":   dealOpen,
+					"tp_open":     tpOpen,
+					"safety_open": safetyOpen,
+					"entry_open":  entryOpen,
+					"deal_id":     dealID,
+				}).Warn("Несоответствие количества, пересчет состояния по REST.")
+				if restored, restoreErr := e.restoreActiveOrders(ctx); restoreErr != nil {
+					return restoreErr
+				} else if !restored {
+					e.logEntry().WithFields(map[string]interface{}{
+						"open_orders": len(openOrders),
+						"deal_open":   dealOpen,
+						"tp_open":     tpOpen,
+						"safety_open": safetyOpen,
+						"entry_open":  entryOpen,
+						"deal_id":     dealID,
+						"balance_qty": rounded,
+						"state_qty":   currentQty,
+					}).Warn("REST не подтвердил сделку при расхождении количества.")
+					e.resetState(ctx, "REST не подтверждает сделку при несовпадении количества.")
+					return nil
+				} else {
+					if err := e.rebuildTP(ctx); err != nil {
+						return err
+					}
+					return nil
+				}
+			}
 		}
 	}
 
@@ -84,6 +172,8 @@ func (e *Engine) syncOpenOrders(ctx context.Context) error {
 	if err := e.rebuildMissingSafetyOrders(ctx); err != nil {
 		return err
 	}
+
+	e.saveState(ctx)
 
 	return nil
 }
@@ -116,6 +206,7 @@ func (e *Engine) handleFill(ctx context.Context, fill models.Fill) {
 		e.state.LastFillAt = time.Now()
 	}
 	e.mu.Unlock()
+	e.saveState(ctx)
 
 	if isTPLinkID(fill.LinkID) || e.state.TPlinkID == fill.LinkID || (e.state.TPOrderID != "" && e.state.TPOrderID == fill.OrderID) {
 		e.onTPFill(ctx, fill)
@@ -130,9 +221,11 @@ func (e *Engine) handleFill(ctx context.Context, fill models.Fill) {
 }
 
 func (e *Engine) handleOrder(ctx context.Context, order models.Order) {
+	changed := false
 	e.mu.Lock()
 	if order.Status == models.OrderStatusCanceled && order.ID == e.state.TPOrderID {
 		e.state.TPOrderID = ""
+		changed = true
 	}
 	if order.Sequence > 0 && order.Sequence <= e.state.LastOrderSeq {
 		e.mu.Unlock()
@@ -146,12 +239,17 @@ func (e *Engine) handleOrder(ctx context.Context, order models.Order) {
 	if isTP && order.Status == models.OrderStatusFilled {
 		if order.FilledQty > 0 && order.FilledQty < totalQty {
 			e.state.TotalQty = totalQty - order.FilledQty
+			changed = true
 		} else {
 			e.state.TotalQty = 0
+			changed = true
 		}
 		totalQty = e.state.TotalQty
 	}
 	e.mu.Unlock()
+	if changed {
+		e.saveState(ctx)
+	}
 
 	if isTP && order.Status == models.OrderStatusFilled {
 		if e.isQtyZero(totalQty) {
@@ -259,6 +357,7 @@ func (e *Engine) onTPFill(ctx context.Context, fill models.Fill) {
 	e.state.UpdatedAt = time.Now()
 	totalQty := e.state.TotalQty
 	e.mu.Unlock()
+	e.saveState(ctx)
 
 	e.logEntry().WithFields(map[string]interface{}{
 		"order_id":  fill.OrderID,
@@ -295,6 +394,7 @@ func (e *Engine) onPositionIncrease(ctx context.Context, fill models.Fill) {
 		e.state.CloseReason = ""
 	}
 	e.mu.Unlock()
+	e.saveState(ctx)
 
 	if prevFilled > 0 {
 		e.logEntry().WithField("link_id", fill.LinkID).Info("Частичное исполнение ордера.")

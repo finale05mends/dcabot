@@ -59,6 +59,7 @@ func (e *Engine) placeTP(ctx context.Context, tpPrice, qty float64, linkSuffix s
 	e.mu.Lock()
 	e.state.TPOrderID = order.ID
 	e.mu.Unlock()
+	e.saveState(ctx)
 	e.log.WithOrderID(order.ID).WithField("component", "engine").WithField("symbol", e.cfg.Bot.Symbol).Info("TP поставлен.")
 	e.confirmTPStatus(ctx, tpOrder, order.ID)
 	return nil
@@ -94,6 +95,7 @@ func (e *Engine) rebuildTP(ctx context.Context) error {
 			e.state.TPOrderID = ""
 			e.mu.Unlock()
 		}
+		e.saveState(ctx)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -339,4 +341,26 @@ func (e *Engine) confirmTPStatus(ctx context.Context, tpOrder models.Order, orde
 		return
 	}
 	e.logEntry().WithField("order_id", orderID).Warn("TP не найден в open orders и в исполнениях.")
+}
+
+func (e *Engine) ensureTPMatchesAverage(ctx context.Context) error {
+	e.mu.Lock()
+	if !e.state.Active {
+		e.mu.Unlock()
+		return nil
+	}
+	avgPrice := e.state.AvgPrice
+	side := e.state.Side
+	planned := e.state.PlannedTPPrice
+	qty := e.state.TotalQty
+	e.mu.Unlock()
+
+	if avgPrice <= 0 || e.isQtyZero(qty) {
+		return nil
+	}
+	expected := e.roundPrice(CalcTPPrice(avgPrice, e.cfg.Bot.TPPercent, side))
+	if planned > 0 && isQtyClose(planned, expected, e.rules.TickSize/2) {
+		return nil
+	}
+	return e.rebuildTP(ctx)
 }

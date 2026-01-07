@@ -104,6 +104,7 @@ func (e *Engine) placeSafetyOrders(ctx context.Context, entryPrice float64) erro
 		e.mu.Lock()
 		e.state.SafetyOrders[linkID] = placed.ID
 		e.mu.Unlock()
+		e.saveState(ctx)
 		e.log.WithOrderID(placed.ID).WithField("component", "engine").WithField("symbol", e.cfg.Bot.Symbol).Info("Страховочный ордер поставлен.")
 
 		if i < len(orders)-1 {
@@ -161,6 +162,7 @@ func (e *Engine) rebuildMissingSafetyOrders(ctx context.Context) error {
 			return err
 		}
 		e.state.SafetyOrders[linkID] = placed.ID
+		e.saveState(ctx)
 		e.log.WithOrderID(placed.ID).WithField("component", "engine").WithField("symbol", e.cfg.Bot.Symbol).Info("Страховочный ордер переставлен.")
 	}
 	return nil
@@ -222,6 +224,7 @@ func (e *Engine) cancelSafetyOrders(ctx context.Context) error {
 	e.mu.Lock()
 	e.state.SafetyOrders = map[string]string{}
 	e.mu.Unlock()
+	e.saveState(ctx)
 	return nil
 }
 
